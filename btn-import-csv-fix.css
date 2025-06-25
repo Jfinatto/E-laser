@@ -1,0 +1,16 @@
+.btn-data.btn-import-csv {
+  background-color: var(--alfix-blue) !important;
+  color: var(--text-light) !important;
+  border: none !important;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: var(--font-main);
+  border-radius: 5px;
+  padding: 10px 15px;
+  text-align: center;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.btn-data.btn-import-csv:hover {
+  opacity: 0.9;
+}

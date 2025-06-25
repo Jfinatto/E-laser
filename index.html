@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Web-Laser | Orçamento de Corte e Dobra</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="btn-import-csv-fix.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <img id="logo-img" src="logo.png" alt="Logo Alfix" class="logo-header">
+      <h1 id="header-title">Orçamento de Corte e Dobra</h1>
+    </div>
+    <button onclick="mostrarTela('config'); mostrarConfigTab('parametros');" class="btn-config" title="Parametrização">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    </button>
+  </header>
+  
+  <main>
+    <section id="pecas" class="tela">
+      <h2>Relação de Peças</h2>
+      <div id="listaPecas"></div>
+      <div class="acoes-principais">
+        <button onclick="adicionarPeca()" class="btn-add-peca">Adicionar Peça</button>
+        <button onclick="calcularOrcamento()" class="btn-calcular">Calcular valores</button>
+        <button onclick="abrirModalRevisaoPDF()" class="btn-pdf">Gerar orçamento em PDF</button>
+      </div>
+      <div id="resultados"></div>
+    </section>
+
+    <section id="config" class="tela" style="display:none;">
+      <div class="config-header">
+        <h2>Parametrização do Orçamento</h2>
+        <button onclick="mostrarTela('pecas')" class="btn-voltar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Voltar ao Orçamento</button>
+      </div>
+      <nav class="config-nav">
+        <button class="config-nav-btn active" onclick="mostrarConfigTab('parametros', this)">Parâmetros</button>
+        <button class="config-nav-btn" onclick="mostrarConfigTab('catalogo', this)">Catálogo de Peças</button>
+        <button class="config-nav-btn" onclick="mostrarConfigTab('historico', this)">Histórico de Propostas</button>
+        <button class="config-nav-btn" onclick="mostrarConfigTab('controle-dados', this)">Controle de Dados</button>
+      </nav>
+
+      <div id="config-parametros" class="config-tab-content">
+        <div class="config-grid">
+          <div class="config-card">
+              <h3>Cálculo e Preços</h3>
+              <label>Preço Aço Carbono (R$/kg): <input type="number" id="precoCarbono" value="10" onchange="salvarEstado()"></label>
+              <label>Preço Aço Inox (R$/kg): <input type="number" id="precoInox" value="20" onchange="salvarEstado()"></label>
+              <label>Preço por Dobra (R$): <input type="number" id="precoDobra" value="5" onchange="salvarEstado()"></label>
+          </div>
+          <div class="config-card">
+            <h3>Sua Empresa</h3>
+            <label>Nome da Empresa: <input type="text" id="empresa" value="Alfix Indústria de Estruturas Metálicas LTDA" onchange="salvarEstado()"></label>
+            <label>CNPJ: <input type="text" id="cnpjEmpresa" value="34.716.119/0001-87" onchange="salvarEstado()"></label>
+            <label>Vendedor: <input type="text" id="vendedor" placeholder="Nome do vendedor" onchange="salvarEstado()"></label>
+          </div>
+          <div class="config-card">
+            <h3>Cliente</h3>
+            <label>Cliente: <input type="text" id="cliente" placeholder="Nome ou Razão Social"></label>
+            <label>CPF/CNPJ do Cliente: <input type="text" id="cpfCnpjCliente" placeholder="CPF ou CNPJ"></label>
+          </div>
+           <div class="config-card">
+            <h3>Proposta</h3>
+            <label>Validade do Orçamento (dias): <input type="number" id="validadeOrcamento" value="10" onchange="salvarEstado()"></label>
+            <label>Número da Proposta: <input type="number" id="numeroProposta" placeholder="Ex: 22000"></label>
+          </div>
+        </div>
+      </div>
+
+      <div id="config-catalogo" class="config-tab-content" style="display:none;">
+        <div id="catalogo-table-container" class="table-container"></div>
+      </div>
+
+      <div id="config-historico" class="config-tab-content" style="display:none;">
+        <div id="historico-table-container" class="table-container"></div>
+      </div>
+
+      <div id="config-controle-dados" class="config-tab-content" style="display:none;">
+        <div class="config-card">
+          <h3>Exportar/Importar Dados</h3>
+          <div class="data-actions-container">
+            <button onclick="exportDataToCsv()" class="btn-data">Exportar Dados (CSV)</button>
+            <label for="importCsvFile" class="btn-data btn-import-csv">Importar Dados (CSV)</label>
+            <button onclick="clearAllData()" class="btn-data btn-clear-data">Limpar Todos os Dados</button>
+          </div>
+          <input type="file" id="importCsvFile" accept=".csv" onchange="importDataFromCsv(event)" style="display:none;">
+        </div>
+      </div>
+    </section>
+  </main>
+  <div id="modalBuscaPeca" class="modal" style="display:none;">
+    <div class="modal-content">
+      <span class="modal-close" onclick="fecharModalBuscaPeca()">&times;</span>
+      <h3>Buscar Peça no Catálogo</h3>
+      <input type="text" id="buscaPecaInput" oninput="filtrarCatalogo()" placeholder="Pesquisar por código ou nome...">
+      <div id="listaBuscaPecas" class="search-results-list"></div>
+    </div>
+  </div>
+  <div id="modalRevisaoPDF" class="modal" style="display:none;">
+    <div class="modal-content modal-revisao">
+      <span class="modal-close" onclick="fecharModalRevisaoPDF()">&times;</span>
+      <h3>Revisar Dados da Proposta</h3>
+      <p>Por favor, revise e confirme os dados abaixo. As alterações feitas aqui serão aplicadas apenas a este PDF.</p>
+      <div class="revisao-grid">
+          <div class="revisao-card">
+              <h4>Sua Empresa</h4>
+              <label>Nome da Empresa: <input type="text" id="revisaoEmpresa"></label>
+              <label>CNPJ: <input type="text" id="revisaoCnpjEmpresa"></label>
+              <label>Vendedor: <input type="text" id="revisaoVendedor"></label>
+          </div>
+          <div class="revisao-card">
+              <h4>Cliente</h4>
+              <label>Cliente: <input type="text" id="revisaoCliente"></label>
+              <label>CPF/CNPJ do Cliente: <input type="text" id="revisaoCpfCnpjCliente"></label>
+          </div>
+          <div class="revisao-card">
+              <h4>Proposta</h4>
+              <label>Número da Proposta: <input type="number" id="revisaoNumeroProposta"></label>
+              <label>Validade (dias): <input type="number" id="revisaoValidadeOrcamento"></label>
+          </div>
+      </div>
+      <div class="modal-actions">
+          <button onclick="fecharModalRevisaoPDF()" class="btn-cancelar">Cancelar</button>
+          <button onclick="confirmarEGerarPDF()" class="btn-confirmar">Confirmar e Gerar PDF</button>
+      </div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
