@@ -1,24 +1,26 @@
-// script.js - Versão 44 (Alinhamento PDF Final e Visibilidade Correta)
+// script.js - Versão revisada para evitar bugs
+
 // Estado centralizado da aplicação
 let appState = {
-  pecas: [], // Peças do orçamento atual
-  catalogoPecas: {}, // Catálogo mestre de peças {'codigo': dadosPeca}
-  propostasSalvas: [], // Histórico de propostas geradas
+  pecas: [],
+  catalogoPecas: {},
+  propostasSalvas: [],
   proximoCodigoPeca: 18100,
   proximoCodigoProposta: 22000,
   configuracoes: {
-      precoCarbono: '10',
-      precoInox: '20',
-      precoDobra: '5',
-      empresa: 'Alfix Indústria de Estruturas Metálicas LTDA',
-      cnpjEmpresa: '34.716.119/0001-87',
-      vendedor: '',
-      validadeOrcamento: '10',
+    precoCarbono: '10',
+    precoInox: '20',
+    precoDobra: '5',
+    empresa: 'Alfix Indústria de Estruturas Metálicas LTDA',
+    cnpjEmpresa: '34.716.119/0001-87',
+    vendedor: '',
+    validadeOrcamento: '10',
   }
 };
 
 // Variável global para rastrear qual card de peça abriu o modal de busca
 let indicePecaAlvo = null;
+let descontoPercentual = 0;
 
 function mostrarTela(id) {
     const telaPecas = document.getElementById('pecas');
@@ -103,11 +105,20 @@ function renderizarPecas() {
                             <option value="carbono" ${peca.material === 'carbono' ? 'selected' : ''}>Aço Carbono</option>
                             <option value="inox" ${peca.material === 'inox' ? 'selected' : ''}>Aço Inox</option>
                         </select></label>
-                        <label><span>Método de cálculo:</span> <select class="metodo-calculo-select" onchange="atualizarPeca(${index}, 'metodoCalculo', this.value); renderizarPecas();">
-                            <option value="area_quadrada" ${peca.metodoCalculo === 'area_quadrada' ? 'selected' : ''}>Área Quadrada</option>
-                            <option value="area_total" ${peca.metodoCalculo === 'area_total' ? 'selected' : ''}>Área Total</option>
-                            <option value="peso" ${peca.metodoCalculo === 'peso' ? 'selected' : ''}>Peso</option>
-                        </select></label>
+                        <label>Grau de Dificuldade:
+                            <select class="grau-dificuldade-select" onchange="atualizarGrauDificuldade(this, ${index})">
+                                <option value="1" ${peca.grauDificuldade == 1 ? 'selected' : ''}>Normal</option>
+                                <option value="2" ${peca.grauDificuldade == 2 ? 'selected' : ''}>Difícil (1,25x)</option>
+                                <option value="3" ${peca.grauDificuldade == 3 ? 'selected' : ''}>Muito Difícil (1,5x)</option>
+                            </select>
+                        </label>
+                        <label>Modo de Cálculo:
+                            <select onchange="atualizarPeca(${index}, 'metodoCalculo', this.value)">
+                                <option value="area_quadrada" ${peca.metodoCalculo === 'area_quadrada' ? 'selected' : ''}>Área Quadrada</option>
+                                <option value="area_total" ${peca.metodoCalculo === 'area_total' ? 'selected' : ''}>Área Total</option>
+                                <option value="peso" ${peca.metodoCalculo === 'peso' ? 'selected' : ''}>Peso Informado</option>
+                            </select>
+                        </label>
                     </div>
                     <div class="peca-card-row metodo-${peca.metodoCalculo}">
                         <label><span>Dobras:</span> <input type="number" value="${peca.dobras || 0}" onchange="atualizarPeca(${index}, 'dobras', parseInt(this.value) || 0)"></label>
@@ -145,6 +156,8 @@ function renderizarPecas() {
 function atualizarPeca(index, propriedade, valor) {
     appState.pecas[index][propriedade] = valor;
     salvarEstado();
+    calcularOrcamento();
+    renderizarPecas();
 }
 
 function atualizarCodigoPeca(index, novoCodigoStr) {
@@ -239,7 +252,8 @@ function adicionarPeca() {
         espessura: '',
         quantidade: 1,
         dobras: 0,
-        imagemBase64: null
+        imagemBase64: null,
+        grauDificuldade: 1
     });
     atualizarProximoCodigoPeca();
     salvarEstado();
@@ -260,11 +274,24 @@ function removerPeca(index) {
 }
 
 function formatarMoeda(valor) {
-    return valor.toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL"
-    });
+    valor = Number(valor) || 0;
+    return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+
+function atualizarDesconto() {
+  const input = document.getElementById('descontoPercentual');
+  let valor = parseFloat(input.value) || 0;
+  if (valor > 15) valor = 15;
+  if (valor < 0) valor = 0;
+  input.value = valor;
+  descontoPercentual = valor;
+}
+
+// Chame atualizarDesconto() ao carregar a página para garantir valor inicial
+window.onload = function() {
+  atualizarDesconto();
+  carregarEstado();
+};
 
 function calcularOrcamento() {
     const precoCarbono = parseFloat(document.getElementById("precoCarbono").value) || 0;
@@ -304,7 +331,7 @@ function calcularOrcamento() {
                 break;
             case 'peso':
                 pesoCalculado = pesoInformado;
-                metodoUsado = "Peso"; // Renomeado para "Peso"
+                metodoUsado = "Peso";
                 break;
             default:
                 pesoCalculado = 0;
@@ -315,7 +342,14 @@ function calcularOrcamento() {
 
         const custoMaterial = p.pesoCalculado * precoKg;
         const custoDobras = dobras * precoDobra;
-        const precoUnit = custoMaterial + custoDobras;
+        let precoUnit = custoMaterial + custoDobras;
+
+        // --- APLICA O MULTIPLICADOR DO GRAU DE DIFICULDADE ---
+        let multiplicador = 1;
+        if (p.grauDificuldade === 2) multiplicador = 1.25;
+        if (p.grauDificuldade === 3) multiplicador = 1.5;
+        precoUnit *= multiplicador;
+
         const precoTotal = precoUnit * quantidade;
 
         totalGeral += precoTotal;
@@ -327,24 +361,38 @@ function calcularOrcamento() {
         resultadosHTML += `<p><b>${p.codigo} - ${p.nome || 'Sem nome'}</b>: [${metodoUsado}] ${p.pesoCalculado} kg/un | ${formatarMoeda(precoUnit)}/un x ${quantidade} un = <b>${formatarMoeda(precoTotal)}</b></p>`;
     });
 
+    let valorTotal = totalGeral;
+    let valorComDesconto = totalGeral;
+
+    if (descontoPercentual > 0) {
+        valorComDesconto = totalGeral * (1 - descontoPercentual / 100);
+    }
+
     resultadosHTML += `<hr>
         <div class="resultados-finais">
             <h3><strong>Peso Total do Pedido: ${pesoTotalPedido.toFixed(3)} kg</strong></h3>
             <h3><strong>Total Geral: ${formatarMoeda(totalGeral)}</strong></h3>
         </div>`;
+
     document.getElementById("resultados").innerHTML = resultadosHTML;
+
+    // Salve para uso no PDF
+    window.valorTotalOrcamento = valorTotal;
+    window.valorComDescontoOrcamento = valorComDesconto;
+    window.descontoPercentualOrcamento = descontoPercentual;
 }
 
-function _criarDocumentoPDF(proposta) {
-    const {
-        jsPDF
-    } = window.jspdf;
+const jsPDF = window.jspdf.jsPDF;
+
+function _criarDocumentoPDF(dados) {
+    const jsPDF = window.jspdf.jsPDF;
     const doc = new jsPDF();
+    let y = 20;
 
     doc.setFontSize(16);
     doc.setTextColor(13, 90, 153);
     doc.setFont("helvetica", "bold");
-    doc.text(`PROPOSTA COMERCIAL: ${proposta.numeroProposta}`, 200, 20, null, null, "right");
+    doc.text(`PROPOSTA COMERCIAL: ${dados.numeroProposta}`, 200, 20, null, null, "right");
     doc.setLineWidth(0.5);
     doc.setDrawColor(243, 108, 33);
     doc.line(10, 25, 200, 25);
@@ -352,13 +400,13 @@ function _criarDocumentoPDF(proposta) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    doc.text(`Empresa: ${proposta.empresa}`, 14, 35);
-    doc.text(`CNPJ: ${proposta.cnpjEmpresa}`, 14, 40);
-    doc.text(`Vendedor: ${proposta.vendedor}`, 14, 45);
-    doc.text(`Data de Emissão: ${proposta.dataEmissao}`, 14, 50);
+    doc.text(`Empresa: ${dados.empresa}`, 14, 35);
+    doc.text(`CNPJ: ${dados.cnpjEmpresa}`, 14, 40);
+    doc.text(`Vendedor: ${dados.vendedor}`, 14, 45);
+    doc.text(`Data de Emissão: ${dados.dataEmissao}`, 14, 50);
 
     const tableColumn = ["Imagem", "Código", "Descrição", "Qtd.", "Peso (kg)", "V. Unit. (R$)", "Subtotal (R$)"];
-    const tableRows = proposta.pecas.map(p => [
+    const tableRows = dados.pecas.map(p => [
         "",
         p.codigo || "-",
         p.nome || "Peça sem nome",
@@ -368,46 +416,63 @@ function _criarDocumentoPDF(proposta) {
         (p.precoTotal || 0).toFixed(2).replace('.', ',')
     ]);
 
+    // Rodapé da tabela com valor total e desconto (apenas aqui!)
     const tableFooter = [
         [
             {
                 content: 'PESO TOTAL DO ORÇAMENTO:',
-                colSpan: 6, // Ocupa até a penúltima coluna
-                styles: {
-                    halign: 'right',
-                    fontStyle: 'bold'
-                }
+                colSpan: 6,
+                styles: { halign: 'right', fontStyle: 'bold' }
             },
             {
-                content: `${(proposta.pesoTotalPedido || 0).toFixed(3).replace('.',',')} kg`,
+                content: `${(dados.pesoTotalPedido || 0).toFixed(3).replace('.',',')} kg`,
                 colSpan: 1,
-                styles: {
-                    halign: 'right',
-                    fontStyle: 'bold',
-                    overflow: 'hidden'
-                }
+                styles: { halign: 'right', fontStyle: 'bold', overflow: 'hidden' }
             }
         ],
         [
             {
-                content: 'VALOR TOTAL DO ORÇAMENTO:',
+                content: dados.descontoPercentual > 0
+                    ? 'VALOR TOTAL:'
+                    : 'VALOR TOTAL DO ORÇAMENTO:',
                 colSpan: 6,
-                styles: {
-                    halign: 'right',
-                    fontStyle: 'bold'
-                }
+                styles: { halign: 'right', fontStyle: 'bold' }
             },
             {
-                content: formatarMoeda(proposta.totalGeral),
+                content: formatarMoeda(dados.totalGeral),
                 colSpan: 1,
                 styles: {
                     halign: 'right',
-                    fontStyle: 'bold',
-                    overflow: 'hidden'
+                    fontStyle: 'bold', // Sempre negrito
+                    textColor: [0,0,0],
+                    overflow: 'hidden',
+                    decoration: dados.descontoPercentual > 0 ? 'lineThrough' : undefined
                 }
             }
         ]
     ];
+
+    if (dados.descontoPercentual > 0) {
+        // Garante que o valor com desconto seja calculado corretamente
+        const valorComDesconto = typeof dados.valorComDesconto === 'number'
+            ? dados.valorComDesconto
+            : (typeof dados.totalGeral === 'number'
+                ? dados.totalGeral * (1 - dados.descontoPercentual / 100)
+                : 0);
+
+        tableFooter.push([
+            {
+                content: `VALOR COM DESCONTO (${dados.descontoPercentual}%):`,
+                colSpan: 6,
+                styles: { halign: 'right', fontStyle: 'bold' }
+            },
+            {
+                content: formatarMoeda(valorComDesconto),
+                colSpan: 1,
+                styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,0], overflow: 'hidden' }
+            }
+        ]);
+    }
 
     doc.autoTable({
         head: [tableColumn],
@@ -453,7 +518,7 @@ function _criarDocumentoPDF(proposta) {
         },
         didDrawPage: function(data) {
             data.table.body.forEach((row, rowIndex) => {
-                const peca = proposta.pecas[rowIndex];
+                const peca = dados.pecas[rowIndex];
                 if (peca && peca.imagemBase64) {
                     const cell = row.cells[0];
                     const imgWidth = 15;
@@ -470,13 +535,13 @@ function _criarDocumentoPDF(proposta) {
     const finalFooterY = pageHeight - 15;
     doc.line(40, finalFooterY - 15, 170, finalFooterY - 15);
     doc.text("Assinatura do Cliente", 105, finalFooterY - 10, null, null, "center");
-    doc.text(`${proposta.cliente}`, 105, finalFooterY - 5, null, null, "center");
-    doc.text(`CPF/CNPJ: ${proposta.cpfCnpjCliente}`, 105, finalFooterY, null, null, "center");
+    doc.text(`${dados.cliente}`, 105, finalFooterY - 5, null, null, "center");
+    doc.text(`CPF/CNPJ: ${dados.cpfCnpjCliente}`, 105, finalFooterY, null, null, "center");
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Esta proposta é válida até: ${proposta.dataValidadeStr}`, 105, pageHeight - 5, null, null, "center");
+    doc.text(`Esta proposta é válida até: ${dados.dataValidadeStr}`, 105, pageHeight - 5, null, null, "center");
 
-    doc.save(`Web-Laser_Orcamento_${proposta.numeroProposta}_${proposta.cliente.replace(/[\s\/]/g, '_') || 'Proposta'}.pdf`);
+    doc.save(`Web-Laser_Orcamento_${dados.numeroProposta}_${dados.cliente.replace(/[\s\/]/g, '_') || 'Proposta'}.pdf`);
 }
 
 function gerarPDFHistorico(numeroProposta) {
@@ -502,8 +567,9 @@ function abrirModalRevisaoPDF() {
     document.getElementById('revisaoCpfCnpjCliente').value = document.getElementById('cpfCnpjCliente').value;
     document.getElementById('revisaoNumeroProposta').value = document.getElementById('numeroProposta').value;
     document.getElementById('revisaoValidadeOrcamento').value = document.getElementById('validadeOrcamento').value;
-
-    document.getElementById('modalRevisaoPDF').style.display = 'flex';
+    // Preencher desconto do modal com o valor atual das configurações
+    document.getElementById('revisaoDescontoPercentual').value = document.getElementById('descontoPercentual').value || 0;
+    document.getElementById('modalRevisaoPDF').style.display = 'block';
 }
 
 function fecharModalRevisaoPDF() {
@@ -532,6 +598,19 @@ function confirmarEGerarPDF() {
         const dataValidade = new Date();
         dataValidade.setDate(hoje.getDate() + validadeDias);
 
+        const descontoPercentual = Math.min(
+            15,
+            Math.max(0, parseFloat(document.getElementById('revisaoDescontoPercentual').value) || 0)
+        );
+        window.descontoPercentualOrcamento = descontoPercentual;
+
+        // Calcule o valor total e com desconto
+        const valorTotal = window.valorTotalOrcamento || 0;
+        const valorComDesconto = descontoPercentual > 0
+            ? valorTotal * (1 - descontoPercentual / 100)
+            : valorTotal;
+        window.valorComDescontoOrcamento = valorComDesconto;
+
         const propostaAtual = {
             numeroProposta: numeroProposta,
             empresa: document.getElementById("revisaoEmpresa").value || "Empresa",
@@ -541,6 +620,7 @@ function confirmarEGerarPDF() {
             cpfCnpjCliente: document.getElementById("revisaoCpfCnpjCliente").value || "",
             dataEmissao: hoje.toLocaleDateString("pt-BR"),
             dataValidadeStr: dataValidade.toLocaleDateString("pt-BR"),
+            descontoPercentual: descontoPercentual,
             pecas: JSON.parse(JSON.stringify(appState.pecas)),
             totalGeral: appState.pecas.reduce((acc, p) => acc + (p.precoTotal || 0), 0),
             pesoTotalPedido: appState.pecas.reduce((acc, p) => acc + (p.pesoCalculado || 0) * p.quantidade, 0)
@@ -557,6 +637,50 @@ function confirmarEGerarPDF() {
         console.error("Ocorreu um erro ao gerar o PDF:", error);
         alert("Não foi possível gerar o PDF. Verifique o console de desenvolvedor (F12) para mais detalhes.");
     }
+}
+
+function atualizarGrauDificuldade(select, indice) {
+    const grau = Number(select.value);
+    appState.pecas[indice].grauDificuldade = grau;
+    calcularOrcamento();
+}
+
+// Ao adicionar uma nova peça:
+function adicionarPeca() {
+    appState.pecas.push({
+        codigo: appState.proximoCodigoPeca,
+        material: "carbono",
+        nome: '',
+        metodoCalculo: 'peso', // Nova peça começa no modo 'peso'
+        largura: '',
+        comprimento: '',
+        area: '',
+        peso: '',
+        espessura: '',
+        quantidade: 1,
+        dobras: 0,
+        imagemBase64: null,
+        grauDificuldade: 1
+    });
+    atualizarProximoCodigoPeca();
+    salvarEstado();
+    renderizarPecas();
+}
+
+// Ao calcular o preço unitário:
+function calcularPrecoPeca(peca, precoKg, precoDobra) {
+    // Calcula o custo base da peça
+    const custoMaterial = (peca.pesoCalculado || 0) * (precoKg || 0);
+    const custoDobras = (peca.dobras || 0) * (precoDobra || 0);
+    let precoUnitario = custoMaterial + custoDobras;
+
+    // Aplica o multiplicador do grau de dificuldade
+    let multiplicador = 1;
+    if (peca.grauDificuldade === 2) multiplicador = 1.25;
+    if (peca.grauDificuldade === 3) multiplicador = 1.5;
+    precoUnitario *= multiplicador;
+
+    return precoUnitario;
 }
 
 function salvarEstado() {

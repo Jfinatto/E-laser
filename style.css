@@ -735,3 +735,44 @@ input[type="file"] {
 .resultados-finais h3 {
     margin: 0;
 }
+
+#descontoPercentual {
+  border-color: var(--alfix-accent-orange);
+  font-weight: bold;
+  color: var(--alfix-blue);
+}
+
+/* Adicione ou ajuste estes estilos no seu style.css para alinhar e padronizar os ícones do header: */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 0;
+}
+
+.btn-config,
+.btn-ajuda {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.btn-config svg,
+.btn-ajuda svg {
+  color: #0d5a99;
+  stroke: #0d5a99;
+  width: 24px;
+  height: 24px;
+}
+
+.btn-config:hover svg,
+.btn-ajuda:hover svg {
+  color: #f36c21;
+  stroke: #f36c21;
+  opacity: 0.8;
+}
